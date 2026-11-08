@@ -230,23 +230,35 @@
         const data = await response.json();
 
         if (response.ok && data.success) {
+          let actionBtn = null;
+          if (data.verificationUrl) {
+            actionBtn = document.createElement('a');
+            actionBtn.href = data.verificationUrl;
+            actionBtn.className = 'resend-action-btn';
+            actionBtn.textContent = 'Verify Account Now';
+            actionBtn.target = '_self';
+          }
+
           showMessage(
             signupMessage,
             data.message || 'Account created! Please check your email inbox to verify your account.',
-            'success'
+            'success',
+            actionBtn
           );
           signupForm.reset();
 
-          // After 2.5 seconds, close modal and pre-fill login email
-          setTimeout(() => {
-            closeModal(signupPanel, signupMessage, signupForm);
-            if (emailInput) {
-              emailInput.value = email;
-            }
-            if (passwordInput) {
-              passwordInput.focus();
-            }
-          }, 2500);
+          if (!data.verificationUrl) {
+            // After 2.5 seconds, close modal and pre-fill login email
+            setTimeout(() => {
+              closeModal(signupPanel, signupMessage, signupForm);
+              if (emailInput) {
+                emailInput.value = email;
+              }
+              if (passwordInput) {
+                passwordInput.focus();
+              }
+            }, 2500);
+          }
         } else {
           showMessage(signupMessage, data.error || 'Registration failed. Please try again.', 'error');
         }
@@ -280,7 +292,15 @@
       const data = await response.json();
 
       if (response.ok && data.success) {
-        showMessage(messageTargetEl, data.message, 'success');
+        let actionBtn = null;
+        if (data.verificationUrl) {
+          actionBtn = document.createElement('a');
+          actionBtn.href = data.verificationUrl;
+          actionBtn.className = 'resend-action-btn';
+          actionBtn.textContent = 'Verify Account Now';
+          actionBtn.target = '_self';
+        }
+        showMessage(messageTargetEl, data.message, 'success', actionBtn);
       } else {
         showMessage(messageTargetEl, data.error || 'Failed to resend verification email.', 'error');
       }
@@ -321,7 +341,15 @@
         });
 
         const data = await response.json();
-        showMessage(forgotMessage, data.message || 'If an account exists, a reset link has been sent.', 'success');
+        let actionBtn = null;
+        if (data.resetUrl) {
+          actionBtn = document.createElement('a');
+          actionBtn.href = data.resetUrl;
+          actionBtn.className = 'resend-action-btn';
+          actionBtn.textContent = 'Reset Password Now';
+          actionBtn.target = '_self';
+        }
+        showMessage(forgotMessage, data.message || 'If an account exists, a reset link has been sent.', 'success', actionBtn);
       } catch {
         showMessage(forgotMessage, 'A connection error occurred. Please try again.', 'error');
       } finally {

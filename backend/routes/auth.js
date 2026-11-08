@@ -138,12 +138,15 @@ router.post('/register', registerLimiter, async (req, res) => {
       console.warn(`[EduShare Registration] Email delivery notification for ${cleanEmail}: ${err.message}`);
     }
 
+    const verificationUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(rawVerificationToken)}`;
+
     return res.status(201).json({
       success: true,
       emailSent,
       message: emailSent
         ? 'Account created successfully! We have sent a verification email to your address. Please verify your account to log in.'
-        : 'Account created! (Note: Real Gmail delivery requires configuring your SMTP_PASS App Password in .env).',
+        : 'Account created! Since SMTP is restricted on free cloud hosting, click below to verify your account instantly:',
+      verificationUrl: !emailSent ? verificationUrl : undefined,
       email: cleanEmail,
       role: normalizedRole
     });
@@ -311,15 +314,23 @@ router.post('/resend-verification', resendLimiter, async (req, res) => {
     });
 
     // Send the email
+    let emailSent = false;
     try {
       await sendVerificationEmail(cleanEmail, rawToken, user.full_name);
+      emailSent = true;
     } catch (err) {
       console.warn(`[EduShare Resend Verification] Email send warning for ${cleanEmail}: ${err.message}`);
     }
 
+    const verificationUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
+
     return res.status(200).json({
       success: true,
-      message: 'A new verification email has been sent. Please check your inbox and spam folder.'
+      emailSent,
+      verificationUrl: !emailSent ? verificationUrl : undefined,
+      message: emailSent
+        ? 'A new verification email has been sent. Please check your inbox and spam folder.'
+        : 'Verification link generated. Since SMTP is restricted on free cloud hosting, click below to verify:'
     });
 
   } catch (err) {
@@ -547,13 +558,24 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
     });
 
     // Send email
+    let emailSent = false;
     try {
       await sendPasswordResetEmail(cleanEmail, rawResetToken, user.full_name);
+      emailSent = true;
     } catch (err) {
       console.warn(`[EduShare Forgot Password] Email send warning for ${cleanEmail}: ${err.message}`);
     }
 
-    return res.status(200).json(genericResponse);
+    const resetUrl = `${config.frontendUrl}/reset-password?token=${encodeURIComponent(rawResetToken)}`;
+
+    return res.status(200).json({
+      success: true,
+      emailSent,
+      resetUrl: !emailSent ? resetUrl : undefined,
+      message: emailSent
+        ? 'If an account is associated with that email, we have sent instructions to reset your password. Please check your inbox.'
+        : 'Password reset link generated. Since SMTP is restricted on free cloud hosting, click below to reset:'
+    });
 
   } catch (err) {
     console.error('[EduShare Forgot Password Error]', err);
