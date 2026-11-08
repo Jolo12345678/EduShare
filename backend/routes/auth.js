@@ -155,7 +155,7 @@ router.post('/register', registerLimiter, async (req, res) => {
     console.error('[EduShare Register Error]', err);
     return res.status(500).json({
       success: false,
-      error: 'An unexpected server error occurred during registration. Please try again.'
+      error: `Registration error: ${err.message || 'Server error'}`
     });
   }
 });
