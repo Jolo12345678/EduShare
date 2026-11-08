@@ -18,7 +18,12 @@ const { getDb, transaction, logSecurityEvent } = require('../database/db');
 const { validatePassword, validateEmail, hashPassword, verifyPassword } = require('../utils/password');
 const { encrypt } = require('../utils/crypto');
 const { generateToken, hashToken, generateSessionToken } = require('../services/tokenService');
-const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
+const {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendAccountVerifiedEmail,
+  sendPasswordChangedEmail
+} = require('../services/emailService');
 const {
   setSessionCookie,
   clearSessionCookie,
@@ -214,6 +219,13 @@ async function handleEmailVerification(req, res) {
         ipAddress: req.ip
       });
 
+      // Send verification confirmation notification to Gmail
+      try {
+        await sendAccountVerifiedEmail(cleanEmail, user.full_name, user.role);
+      } catch (err) {
+        console.warn(`[EduShare EmailService] Could not send verification confirmation to ${cleanEmail}: ${err.message}`);
+      }
+
       return res.status(200).json({
         success: true,
         message: 'Your email has been successfully verified! Your EduShare account is now activated.'
@@ -280,6 +292,16 @@ async function handleEmailVerification(req, res) {
       userId: tokenRecord.user_id,
       ipAddress: req.ip
     });
+
+    // Send verification confirmation notification to Gmail
+    const verifiedUser = db.prepare('SELECT email, full_name, role FROM users WHERE id = ?').get(tokenRecord.user_id);
+    if (verifiedUser) {
+      try {
+        await sendAccountVerifiedEmail(verifiedUser.email, verifiedUser.full_name, verifiedUser.role);
+      } catch (err) {
+        console.warn(`[EduShare EmailService] Could not send verification confirmation to ${verifiedUser.email}: ${err.message}`);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -745,6 +767,16 @@ router.post('/reset-password', async (req, res) => {
       ipAddress: req.ip
     });
 
+    // Send security alert email
+    const resetUser = db.prepare('SELECT email, full_name FROM users WHERE id = ?').get(tokenRecord.user_id);
+    if (resetUser) {
+      try {
+        await sendPasswordChangedEmail(resetUser.email, resetUser.full_name);
+      } catch (err) {
+        console.warn(`[EduShare Reset Password] Alert email send error: ${err.message}`);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Your password has been successfully updated! You may now sign in with your new password.'
@@ -757,6 +789,61 @@ router.post('/reset-password', async (req, res) => {
       error: 'An unexpected server error occurred while resetting your password.'
     });
   }
+});
+
+/**
+ * ============================================================================
+ * 9. SMTP DIAGNOSTICS & STATUS
+ * GET /api/auth/test-smtp
+ * ============================================================================
+ */
+router.get('/test-smtp', async (req, res) => {
+  const net = require('net');
+  const results = {
+    hasSmtpPass: Boolean(config.smtp.pass),
+    smtpUser: config.smtp.user,
+    smtpHost: config.smtp.host,
+    smtpPort: config.smtp.port,
+    tcpTest465: null,
+    tcpTest587: null,
+    verifyResult: null
+  };
+
+  function testPort(host, port, timeout = 4000) {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(timeout);
+      socket.on('connect', () => {
+        socket.destroy();
+        resolve({ port, connected: true });
+      });
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve({ port, connected: false, error: 'Connection timed out' });
+      });
+      socket.on('error', (err) => {
+        socket.destroy();
+        resolve({ port, connected: false, error: err.message });
+      });
+      socket.connect(port, host);
+    });
+  }
+
+  results.tcpTest465 = await testPort('smtp.gmail.com', 465);
+  results.tcpTest587 = await testPort('smtp.gmail.com', 587);
+
+  if (config.smtp.pass) {
+    const { verifySmtpConnection } = require('../services/emailService');
+    try {
+      results.verifyResult = await verifySmtpConnection();
+    } catch (err) {
+      results.verifyResult = { ok: false, error: err.message };
+    }
+  } else {
+    results.verifyResult = { ok: false, error: 'SMTP_PASS environment variable is not configured on Render' };
+  }
+
+  return res.json(results);
 });
 
 module.exports = router;

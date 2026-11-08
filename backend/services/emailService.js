@@ -497,8 +497,211 @@ EduShare Team
   return { messageId: info.messageId, recipient: toEmail };
 }
 
+/**
+ * Sends a confirmation email when an account is successfully verified.
+ * Highlights AES-256-GCM and Argon2id security architecture.
+ * 
+ * @param {string} toEmail User's registered email
+ * @param {string} [recipientName] User's full name
+ * @param {string} [role] User role (student or teacher)
+ * @returns {Promise<{ messageId: string, recipient: string }>}
+ */
+async function sendAccountVerifiedEmail(toEmail, recipientName = '', role = 'student') {
+  if (!config.smtp.pass && !process.env.SMTP_WEBHOOK_URL) {
+    console.warn(`[EduShare EmailService] SMTP_PASS not set. Skipping verification confirmation email to ${toEmail}.`);
+    return { skipped: true };
+  }
+
+  const loginUrl = `${config.frontendUrl}/`;
+  const displayName = recipientName ? ` ${recipientName}` : '';
+  const roleDisplay = role === 'teacher' ? 'Teacher' : 'Student';
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduShare Account Activated</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #f4f7fc; font-family: Arial, Helvetica, sans-serif; color: #142b54; line-height: 1.6; }
+    .wrapper { width: 100%; background-color: #f4f7fc; padding: 40px 15px; }
+    .card { max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(6,38,95,0.08); border: 1px solid #d5deed; }
+    .header { background: linear-gradient(135deg, #031c49 0%, #06265f 100%); padding: 30px 40px; text-align: center; color: #ffffff; }
+    .brand-mark { display: inline-block; width: 44px; height: 44px; line-height: 44px; background: #ffc400; color: #06265f; font-weight: 800; font-size: 20px; border-radius: 8px; margin-bottom: 12px; }
+    .brand-title { font-size: 24px; font-weight: 700; margin: 0; }
+    .brand-sub { font-size: 12px; color: #9fb3c8; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+    .content { padding: 40px; }
+    .greeting { font-size: 20px; font-weight: 700; color: #06265f; margin-bottom: 16px; }
+    .text { font-size: 15px; color: #334e68; margin-bottom: 16px; }
+    .security-badge { background: #eef3fb; border: 1.5px solid #d5deed; border-radius: 10px; padding: 18px 20px; margin: 24px 0; }
+    .security-badge h4 { margin: 0 0 8px 0; color: #06265f; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .security-badge p { margin: 0; font-size: 13px; color: #486581; line-height: 1.5; }
+    .btn-container { text-align: center; margin: 32px 0 24px 0; }
+    .action-btn { display: inline-block; background: #087ed0; color: #ffffff !important; text-decoration: none; font-size: 16px; font-weight: 700; padding: 14px 34px; border-radius: 8px; }
+    .footer { background-color: #f8fafc; padding: 20px 40px; text-align: center; font-size: 12px; color: #829ab1; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <div class="brand-mark">UA</div>
+        <div class="brand-title">EduShare</div>
+        <div class="brand-sub">University of the Assumption</div>
+      </div>
+      <div class="content">
+        <div class="greeting">Congratulations${displayName}!</div>
+        <p class="text">Your EduShare account has been successfully verified and activated with the <strong>${roleDisplay}</strong> role.</p>
+        <p class="text">You can now access the Smart Quiz Generator, lesson analysis, and anti-cheat exam assessments.</p>
+        
+        <div class="security-badge">
+          <h4>🛡️ AES-256-GCM & Argon2id Security Protection</h4>
+          <p>Your password is protected using memory-hard Argon2id cryptographic hashing. Your profile and sensitive activity are secured with authenticated AES-256-GCM encryption with tamper detection.</p>
+        </div>
+
+        <div class="btn-container">
+          <a href="${loginUrl}" class="action-btn" target="_blank" rel="noopener">LOG IN TO EDUSHARE</a>
+        </div>
+      </div>
+      <div class="footer">
+        <p style="margin: 0 0 4px 0;">University of the Assumption · EduShare Platform</p>
+        <p style="margin: 0; font-size: 11px;">Official sender: edushare12@gmail.com</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+Congratulations${displayName}!
+
+Your EduShare account has been successfully verified and activated as a ${roleDisplay}.
+
+Security Protection:
+- Argon2id Password Hashing
+- Authenticated AES-256-GCM Data Encryption
+
+Log in to EduShare:
+${loginUrl}
+
+EduShare Team · University of the Assumption
+  `.trim();
+
+  const transporter = getTransporter();
+  const info = await transporter.sendMail({
+    from: config.smtp.from,
+    to: toEmail,
+    subject: 'EduShare - Account Successfully Activated',
+    text,
+    html
+  });
+  return { messageId: info.messageId, recipient: toEmail };
+}
+
+/**
+ * Sends a security alert email when a password has been updated.
+ * 
+ * @param {string} toEmail User's registered email
+ * @param {string} [recipientName] User's full name
+ * @returns {Promise<{ messageId: string, recipient: string }>}
+ */
+async function sendPasswordChangedEmail(toEmail, recipientName = '') {
+  if (!config.smtp.pass && !process.env.SMTP_WEBHOOK_URL) {
+    console.warn(`[EduShare EmailService] SMTP_PASS not set. Skipping password alert email to ${toEmail}.`);
+    return { skipped: true };
+  }
+
+  const loginUrl = `${config.frontendUrl}/`;
+  const displayName = recipientName ? ` ${recipientName}` : '';
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduShare Security Alert - Password Changed</title>
+  <style>
+    body { margin: 0; padding: 0; background-color: #f4f7fc; font-family: Arial, Helvetica, sans-serif; color: #142b54; line-height: 1.6; }
+    .wrapper { width: 100%; background-color: #f4f7fc; padding: 40px 15px; }
+    .card { max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 30px rgba(6,38,95,0.08); border: 1px solid #d5deed; }
+    .header { background: linear-gradient(135deg, #031c49 0%, #06265f 100%); padding: 30px 40px; text-align: center; color: #ffffff; }
+    .brand-mark { display: inline-block; width: 44px; height: 44px; line-height: 44px; background: #ffc400; color: #06265f; font-weight: 800; font-size: 20px; border-radius: 8px; margin-bottom: 12px; }
+    .brand-title { font-size: 24px; font-weight: 700; margin: 0; }
+    .brand-sub { font-size: 12px; color: #9fb3c8; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+    .content { padding: 40px; }
+    .greeting { font-size: 20px; font-weight: 700; color: #06265f; margin-bottom: 16px; }
+    .text { font-size: 15px; color: #334e68; margin-bottom: 16px; }
+    .alert-box { background: #fef3f2; border-left: 4px solid #d92d20; padding: 16px; border-radius: 4px; margin: 20px 0; font-size: 14px; color: #b42318; }
+    .btn-container { text-align: center; margin: 32px 0 24px 0; }
+    .action-btn { display: inline-block; background: #087ed0; color: #ffffff !important; text-decoration: none; font-size: 16px; font-weight: 700; padding: 14px 34px; border-radius: 8px; }
+    .footer { background-color: #f8fafc; padding: 20px 40px; text-align: center; font-size: 12px; color: #829ab1; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <div class="brand-mark">UA</div>
+        <div class="brand-title">EduShare</div>
+        <div class="brand-sub">University of the Assumption</div>
+      </div>
+      <div class="content">
+        <div class="greeting">Security Alert${displayName}</div>
+        <p class="text">The password for your EduShare account was recently changed.</p>
+        
+        <div class="alert-box">
+          <strong>Security Action Taken:</strong> All previous active sessions across all devices have been revoked and terminated to secure your account.
+        </div>
+
+        <p class="text">If you made this change, you can safely ignore this notification and log in with your new password.</p>
+        <p class="text" style="color:#b42318;">If you did NOT change your password, please contact EduShare support immediately or reset your password immediately.</p>
+
+        <div class="btn-container">
+          <a href="${loginUrl}" class="action-btn" target="_blank" rel="noopener">LOG IN TO EDUSHARE</a>
+        </div>
+      </div>
+      <div class="footer">
+        <p style="margin: 0 0 4px 0;">University of the Assumption · EduShare Platform</p>
+        <p style="margin: 0; font-size: 11px;">Official sender: edushare12@gmail.com</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const text = `
+Security Alert${displayName}:
+
+Your EduShare account password has been changed.
+All previous active sessions have been invalidated for security.
+
+If you made this change, you can log in here:
+${loginUrl}
+
+If you did not make this change, please reset your password immediately.
+
+EduShare Team · University of the Assumption
+  `.trim();
+
+  const transporter = getTransporter();
+  const info = await transporter.sendMail({
+    from: config.smtp.from,
+    to: toEmail,
+    subject: 'EduShare Security Alert - Password Changed',
+    text,
+    html
+  });
+  return { messageId: info.messageId, recipient: toEmail };
+}
+
 module.exports = {
   verifySmtpConnection,
   sendVerificationEmail,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendAccountVerifiedEmail,
+  sendPasswordChangedEmail
 };
