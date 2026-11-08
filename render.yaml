@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: edushare
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: FRONTEND_URL
+        value: https://edushare.onrender.com
+      - key: BACKEND_URL
+        value: https://edushare.onrender.com
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_USER
+        value: edushare12@gmail.com
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        value: EduShare <edushare12@gmail.com>
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AES_ENCRYPTION_KEY
+        value: 8918b6a453bc7c2df02b94bfebcd8353e3b0dc5484fccc30b7360a66d42215ca
