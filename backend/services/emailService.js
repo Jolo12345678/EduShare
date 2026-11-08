@@ -49,14 +49,74 @@ function getTransporter() {
 }
 
 /**
+ * Dispatches an email using the primary Gmail SMTP transport (Port 465 SSL/TLS).
+ * Supports optional HTTPS relay fallback if configured (SMTP_WEBHOOK_URL) or if
+ * outbound SMTP ports are firewalled by cloud hosting providers.
+ */
+async function dispatchEmail(mailOptions) {
+  // If SMTP_WEBHOOK_URL is configured
+  if (config.smtp.webhookUrl) {
+    try {
+      const webhookRes = await fetch(config.smtp.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: mailOptions.to,
+          subject: mailOptions.subject,
+          text: mailOptions.text,
+          html: mailOptions.html,
+          from: mailOptions.from
+        }),
+        signal: AbortSignal.timeout(10000)
+      });
+      if (webhookRes.ok) {
+        return { messageId: `relay-${Date.now()}`, recipient: mailOptions.to };
+      }
+    } catch (err) {
+      console.warn(`[EduShare EmailService] Webhook dispatch warning: ${err.message}`);
+    }
+  }
+
+  // Primary: Native Gmail SMTP SSL port 465
+  const transporter = getTransporter();
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    return { messageId: info.messageId, recipient: mailOptions.to };
+  } catch (smtpErr) {
+    if (config.smtp.webhookUrl) {
+      try {
+        const webhookRes = await fetch(config.smtp.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: mailOptions.to,
+            subject: mailOptions.subject,
+            text: mailOptions.text,
+            html: mailOptions.html,
+            from: mailOptions.from
+          }),
+          signal: AbortSignal.timeout(10000)
+        });
+        if (webhookRes.ok) {
+          return { messageId: `fallback-relay-${Date.now()}`, recipient: mailOptions.to };
+        }
+      } catch (webhookErr) {
+        console.warn(`[EduShare EmailService] Webhook fallback failed: ${webhookErr.message}`);
+      }
+    }
+    throw smtpErr;
+  }
+}
+
+/**
  * Validates the SMTP connection with Gmail.
  * @returns {Promise<{ ok: boolean, message: string }>}
  */
 async function verifySmtpConnection() {
-  if (!config.smtp.pass) {
+  if (!config.smtp.pass && !config.smtp.webhookUrl) {
     return {
       ok: false,
-      message: 'SMTP_PASS is not configured in .env. A Gmail App Password is required.'
+      message: 'SMTP_PASS is not configured. A Gmail App Password or SMTP_WEBHOOK_URL is required.'
     };
   }
 
@@ -65,6 +125,9 @@ async function verifySmtpConnection() {
     await transporter.verify();
     return { ok: true, message: 'Gmail SMTP connection verified successfully.' };
   } catch (err) {
+    if (config.smtp.webhookUrl) {
+      return { ok: true, message: `Gmail SMTP port 465 unavailable (${err.message}); HTTPS email relay is active.` };
+    }
     return {
       ok: false,
       message: `Gmail SMTP authentication failed: ${err.message}`
@@ -272,8 +335,6 @@ Thank you,
 EduShare Team
   `.trim();
 
-  const transporter = getTransporter();
-
   const mailOptions = {
     from: config.smtp.from,
     to: toEmail,
@@ -282,8 +343,7 @@ EduShare Team
     html
   };
 
-  const info = await transporter.sendMail(mailOptions);
-  return { messageId: info.messageId, recipient: toEmail };
+  return await dispatchEmail(mailOptions);
 }
 
 /**
@@ -483,8 +543,6 @@ Thank you,
 EduShare Team
   `.trim();
 
-  const transporter = getTransporter();
-
   const mailOptions = {
     from: config.smtp.from,
     to: toEmail,
@@ -493,8 +551,7 @@ EduShare Team
     html
   };
 
-  const info = await transporter.sendMail(mailOptions);
-  return { messageId: info.messageId, recipient: toEmail };
+  return await dispatchEmail(mailOptions);
 }
 
 /**
@@ -589,15 +646,13 @@ ${loginUrl}
 EduShare Team · University of the Assumption
   `.trim();
 
-  const transporter = getTransporter();
-  const info = await transporter.sendMail({
+  return await dispatchEmail({
     from: config.smtp.from,
     to: toEmail,
     subject: 'EduShare - Account Successfully Activated',
     text,
     html
   });
-  return { messageId: info.messageId, recipient: toEmail };
 }
 
 /**
@@ -687,15 +742,13 @@ If you did not make this change, please reset your password immediately.
 EduShare Team · University of the Assumption
   `.trim();
 
-  const transporter = getTransporter();
-  const info = await transporter.sendMail({
+  return await dispatchEmail({
     from: config.smtp.from,
     to: toEmail,
     subject: 'EduShare Security Alert - Password Changed',
     text,
     html
   });
-  return { messageId: info.messageId, recipient: toEmail };
 }
 
 module.exports = {

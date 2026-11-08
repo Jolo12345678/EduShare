@@ -12,7 +12,7 @@ const port = parseInt(process.env.PORT || '3000', 10);
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Production deployed URL
-const defaultProductionUrl = 'https://edushare-hwft.onrender.com';
+const defaultProductionUrl = 'https://edushare-suul.onrender.com';
 const resolvedBaseUrl = (
   process.env.RENDER_EXTERNAL_URL ||
   process.env.FRONTEND_URL ||
@@ -40,7 +40,8 @@ const config = {
     secure: (process.env.SMTP_PORT || '465') === '465', // Port 465 uses SSL/TLS
     user: process.env.SMTP_USER || 'edushare12@gmail.com',
     pass: process.env.SMTP_PASS || '',
-    from: process.env.EMAIL_FROM || 'EduShare <edushare12@gmail.com>'
+    from: process.env.EMAIL_FROM || 'EduShare <edushare12@gmail.com>',
+    webhookUrl: process.env.SMTP_WEBHOOK_URL || ''
   },
   
   // Database Configuration

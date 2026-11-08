@@ -12,9 +12,9 @@ services:
       - key: NODE_VERSION
         value: 22.14.0
       - key: FRONTEND_URL
-        value: https://edushare-hwft.onrender.com
+        value: https://edushare-suul.onrender.com
       - key: BACKEND_URL
-        value: https://edushare-hwft.onrender.com
+        value: https://edushare-suul.onrender.com
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
