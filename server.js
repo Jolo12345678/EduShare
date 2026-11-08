@@ -152,9 +152,10 @@ app.use((err, req, res, next) => {
 
 // Start Server if not imported by test suite
 if (require.main === module) {
-  const server = app.listen(config.port, () => {
+  const HOST = '0.0.0.0';
+  const server = app.listen(config.port, HOST, () => {
     console.log(`=======================================================`);
-    console.log(`  EduShare Server running at http://localhost:${config.port}`);
+    console.log(`  EduShare Server running at http://${HOST}:${config.port}`);
     console.log(`  Environment: ${config.nodeEnv}`);
     console.log(`  Official Sender: ${config.smtp.from}`);
     console.log(`  Database: ${config.databaseUrl}`);

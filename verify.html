@@ -143,9 +143,9 @@
       <p id="errorMessage">This verification link is invalid or has expired.</p>
 
       <div class="resend-box">
-        <label for="resendEmail">Activate your account with your registered email</label>
+        <label for="resendEmail">Need a new verification link? Request one below:</label>
         <input type="email" id="resendEmail" placeholder="Enter your registered email address">
-        <button type="button" id="resendBtn" class="action-btn" style="height: 46px; line-height: 46px;">Activate Account Now</button>
+        <button type="button" id="resendBtn" class="action-btn" style="height: 46px; line-height: 46px;">Resend Verification Email</button>
         <div id="resendNotice" class="message" style="margin-top: 10px;"></div>
       </div>
 
@@ -175,29 +175,10 @@
         resendEmail.value = emailParam;
       }
 
-      // If email parameter was provided directly in URL, attempt instant activation
-      if (!token && emailParam) {
-        try {
-          const directRes = await fetch('/api/auth/verify-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailParam })
-          });
-          const dData = await directRes.json();
-          loadingState.style.display = 'none';
-
-          if (directRes.ok && dData.success) {
-            successState.style.display = 'block';
-            if (dData.message) successMessage.textContent = dData.message;
-            return;
-          }
-        } catch {}
-      }
-
       if (!token) {
         loadingState.style.display = 'none';
         errorState.style.display = 'block';
-        errorMessage.textContent = 'Enter your email below to instantly activate and verify your EduShare account:';
+        errorMessage.textContent = 'No verification token provided. If you need a verification link, enter your registered email below:';
         return;
       }
 
@@ -218,7 +199,7 @@
           }
         } else {
           errorState.style.display = 'block';
-          errorMessage.textContent = data.error || 'Verification failed. Please enter your email below to activate your account.';
+          errorMessage.textContent = data.error || 'Verification failed. Please request a new verification email below.';
         }
       } catch (err) {
         loadingState.style.display = 'none';
@@ -226,7 +207,7 @@
         errorMessage.textContent = 'A connection error occurred while contacting the server. Please check your network and try again.';
       }
 
-      // Activate / Verify button logic
+      // Resend Verification Email Button
       if (resendBtn) {
         resendBtn.addEventListener('click', async () => {
           const email = resendEmail.value.trim();
@@ -237,35 +218,30 @@
           }
 
           resendBtn.disabled = true;
-          resendBtn.textContent = 'Activating Account...';
+          resendBtn.textContent = 'Sending Verification Email...';
           resendNotice.className = 'message';
           resendNotice.textContent = '';
 
           try {
-            // Instant direct verification
-            const res = await fetch('/api/auth/verify-email', {
+            const res = await fetch('/api/auth/resend-verification', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email })
             });
             const d = await res.json();
             if (res.ok && d.success) {
-              loadingState.style.display = 'none';
-              errorState.style.display = 'none';
-              successState.style.display = 'block';
-              if (d.message) {
-                successMessage.textContent = d.message;
-              }
+              resendNotice.className = 'message show success';
+              resendNotice.textContent = d.message || 'A new verification email has been sent. Please check your inbox.';
             } else {
               resendNotice.className = 'message show error';
-              resendNotice.textContent = d.error || 'Failed to verify account. Please check your email address.';
+              resendNotice.textContent = d.error || 'Failed to send verification email. Please check your email address.';
             }
           } catch (err) {
             resendNotice.className = 'message show error';
             resendNotice.textContent = 'Connection error. Please try again.';
           } finally {
             resendBtn.disabled = false;
-            resendBtn.textContent = 'Activate Account Now';
+            resendBtn.textContent = 'Resend Verification Email';
           }
         });
       }

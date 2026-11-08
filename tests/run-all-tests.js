@@ -10,6 +10,7 @@ const runSessionTests = require('./session.test');
 const runEmailTests = require('./email.test');
 const runHttpTests = require('./http.test');
 const runQuizFeatureTests = require('./quiz.test');
+const runProductionTests = require('./production-readiness.test');
 
 async function runAll() {
   console.log('===============================================================');
@@ -39,9 +40,12 @@ async function runAll() {
     // 7. Quiz Generator & Full-Screen Assessment tests
     runQuizFeatureTests();
 
+    // 8. Production Readiness & Security flow tests
+    await runProductionTests();
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log('===============================================================');
-    console.log(`🎉 ALL 7 TEST SUITES COMPLETED SUCCESSFULLY in ${elapsed}s!`);
+    console.log(`🎉 ALL 8 TEST SUITES COMPLETED SUCCESSFULLY in ${elapsed}s!`);
     console.log('===============================================================');
     process.exit(0);
   } catch (err) {

@@ -40,9 +40,9 @@ function getTransporter() {
     tls: {
       rejectUnauthorized: true
     },
-    connectionTimeout: 5000,
-    greetingTimeout: 5000,
-    socketTimeout: 5000
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
   });
 
   return transporterInstance;
@@ -488,7 +488,7 @@ EduShare Team
   const mailOptions = {
     from: config.smtp.from,
     to: toEmail,
-    subject: 'Reset Your EduShare Password',
+    subject: 'EduShare – Password Reset Request',
     text,
     html
   };

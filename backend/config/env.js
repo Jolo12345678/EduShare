@@ -2,18 +2,36 @@
  * EduShare Environment Configuration & Validation
  */
 const path = require('path');
+const fs = require('fs');
 const dotenv = require('dotenv');
 
 // Load .env from project root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+const port = parseInt(process.env.PORT || '3000', 10);
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Production deployed URL
+const defaultProductionUrl = 'https://edushare-hwft.onrender.com';
+const resolvedBaseUrl = (
+  process.env.RENDER_EXTERNAL_URL ||
+  process.env.FRONTEND_URL ||
+  (isProduction ? defaultProductionUrl : `http://localhost:${port}`)
+).replace(/\/+$/, '');
+
+// Persistent storage support: if Render persistent disk is mounted at /var/data, use it
+let defaultDbPath = path.resolve(__dirname, '../../edushare.db');
+if (fs.existsSync('/var/data')) {
+  defaultDbPath = '/var/data/edushare.db';
+}
+
 const config = {
-  port: parseInt(process.env.PORT || '3000', 10),
+  port,
   nodeEnv: process.env.NODE_ENV || 'development',
-  isProduction: process.env.NODE_ENV === 'production',
+  isProduction,
   
-  frontendUrl: (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, ''),
-  backendUrl: (process.env.BACKEND_URL || 'http://localhost:3000').replace(/\/+$/, ''),
+  frontendUrl: resolvedBaseUrl,
+  backendUrl: (process.env.BACKEND_URL || resolvedBaseUrl).replace(/\/+$/, ''),
   
   // Gmail SMTP Configuration
   smtp: {
@@ -26,7 +44,7 @@ const config = {
   },
   
   // Database Configuration
-  databaseUrl: process.env.DATABASE_URL || path.resolve(__dirname, '../../edushare.db'),
+  databaseUrl: process.env.DATABASE_URL || defaultDbPath,
   
   // Security Keys
   sessionSecret: process.env.SESSION_SECRET || 'edushare-default-session-secret-change-in-prod-32bytes',
@@ -41,7 +59,7 @@ if (config.aesEncryptionKey.length !== 64) {
 // Check SMTP configuration status
 if (!config.smtp.pass) {
   console.warn(
-    '[EduShare Config Warning] SMTP_PASS is empty in .env!\n' +
+    '[EduShare Config Warning] SMTP_PASS is empty!\n' +
     '  -> Gmail verification and password reset emails will NOT be delivered until you configure your 16-character Gmail App Password.'
   );
 }

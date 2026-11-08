@@ -38,7 +38,7 @@ async function runEmailTests() {
   const expectedResetUrl = `${config.frontendUrl}/reset-password?token=${testToken}`;
   assert(expectedResetUrl.includes('/reset-password?token='), 'Reset URL must link to reset-password endpoint.');
   console.log(`✓ PASS: Password reset link generated: ${expectedResetUrl}`);
-  console.log('✓ PASS: Password reset subject: "Reset Your EduShare Password"');
+  console.log('✓ PASS: Password reset subject: "EduShare – Password Reset Request"');
   console.log('✓ PASS: Password reset expiration notice: 30 minutes.');
 
   // 4. Live SMTP Connection Check
