@@ -13,6 +13,7 @@
 
 const express = require('express');
 const router = express.Router();
+const config = require('../config/env');
 const { getDb, transaction, logSecurityEvent } = require('../database/db');
 const { validatePassword, validateEmail, hashPassword, verifyPassword } = require('../utils/password');
 const { encrypt } = require('../utils/crypto');
@@ -155,7 +156,7 @@ router.post('/register', registerLimiter, async (req, res) => {
     console.error('[EduShare Register Error]', err);
     return res.status(500).json({
       success: false,
-      error: `Registration error: ${err.message || 'Server error'}`
+      error: 'An unexpected server error occurred during registration. Please try again.'
     });
   }
 });
