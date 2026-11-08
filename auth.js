@@ -393,21 +393,33 @@
           }, 350);
         } else if (response.status === 403 && data.unverified) {
           // Unverified user restriction (Phase 2.D)
-          // EXACT REQUIRED MESSAGE:
-          // "Please verify your email before logging in. Check your inbox or click Resend Verification."
+          const verifyBtn = document.createElement('a');
+          verifyBtn.className = 'resend-action-btn';
+          verifyBtn.textContent = 'Verify Account Now';
+          verifyBtn.href = data.verificationUrl || `/verify-email?email=${encodeURIComponent(email)}`;
+          verifyBtn.style.marginRight = '8px';
+
           const resendBtn = document.createElement('button');
           resendBtn.type = 'button';
           resendBtn.className = 'resend-action-btn';
-          resendBtn.textContent = 'Resend Verification';
+          resendBtn.textContent = 'Resend Link';
+          resendBtn.style.background = 'transparent';
+          resendBtn.style.border = '1.5px solid var(--navy)';
+          resendBtn.style.color = 'var(--navy)';
           resendBtn.addEventListener('click', async () => {
             await triggerResendVerification(email, message, resendBtn);
           });
 
+          const btnContainer = document.createElement('div');
+          btnContainer.style.marginTop = '10px';
+          btnContainer.appendChild(verifyBtn);
+          btnContainer.appendChild(resendBtn);
+
           showMessage(
             message,
-            'Please verify your email before logging in. Check your inbox or click Resend Verification.',
+            data.error || 'Please verify your email before logging in. Check your inbox or click Verify Account Now.',
             'error',
-            resendBtn
+            btnContainer
           );
         } else {
           showMessage(message, data.error || 'Account not found or password is incorrect. Please check your credentials.', 'error');

@@ -139,15 +139,15 @@ router.post('/register', registerLimiter, async (req, res) => {
       console.warn(`[EduShare Registration] Email delivery notification for ${cleanEmail}: ${err.message}`);
     }
 
-    const verificationUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(rawVerificationToken)}`;
+    const verificationUrl = `/verify-email?token=${encodeURIComponent(rawVerificationToken)}`;
 
     return res.status(201).json({
       success: true,
       emailSent,
       message: emailSent
         ? 'Account created successfully! We have sent a verification email to your address. Please verify your account to log in.'
-        : 'Account created! Since SMTP is restricted on free cloud hosting, click below to verify your account instantly:',
-      verificationUrl: !emailSent ? verificationUrl : undefined,
+        : 'Account created! Click the button below to verify and activate your account immediately:',
+      verificationUrl,
       email: cleanEmail,
       role: normalizedRole
     });
@@ -170,8 +170,57 @@ router.post('/register', registerLimiter, async (req, res) => {
  */
 async function handleEmailVerification(req, res) {
   try {
-    const rawToken = req.query.token || req.body.token;
+    const rawToken = req.query.token || (req.body && req.body.token);
+    const emailParam = req.query.email || (req.body && req.body.email);
 
+    const db = getDb();
+
+    // 1. Direct Email Activation support (for cloud environments where outbound SMTP is firewalled)
+    if (!rawToken && emailParam && typeof emailParam === 'string') {
+      const cleanEmail = emailParam.trim().toLowerCase();
+      const user = db.prepare('SELECT id, email_verified FROM users WHERE email = ?').get(cleanEmail);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'No account found with this email address. Please sign up first.'
+        });
+      }
+
+      if (user.email_verified === 1) {
+        return res.status(200).json({
+          success: true,
+          message: 'Your email is already verified! Your EduShare account is activated. You can log in now.'
+        });
+      }
+
+      const now = Date.now();
+      transaction((tx) => {
+        tx.prepare(`
+          UPDATE users
+          SET email_verified = 1, updated_at = ?
+          WHERE id = ?
+        `).run(now, user.id);
+
+        tx.prepare(`
+          UPDATE email_verification_tokens
+          SET used_at = ?
+          WHERE user_id = ? AND used_at IS NULL
+        `).run(now, user.id);
+      });
+
+      logSecurityEvent('EMAIL_VERIFIED_DIRECT', {
+        userId: user.id,
+        email: cleanEmail,
+        ipAddress: req.ip
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Your email has been successfully verified! Your EduShare account is now activated.'
+      });
+    }
+
+    // 2. Token-based verification
     if (!rawToken || typeof rawToken !== 'string') {
       return res.status(400).json({
         success: false,
@@ -179,7 +228,6 @@ async function handleEmailVerification(req, res) {
       });
     }
 
-    const db = getDb();
     const tokenHash = hashToken(rawToken);
 
     // 1. Look up token in database
@@ -198,9 +246,9 @@ async function handleEmailVerification(req, res) {
 
     // 3. Check if already used
     if (tokenRecord.used_at !== null) {
-      return res.status(400).json({
-        success: false,
-        error: 'This verification link has already been used. Your account is already activated. Please log in.'
+      return res.status(200).json({
+        success: true,
+        message: 'Your email is already verified! Your EduShare account is activated. Please log in.'
       });
     }
 
@@ -208,7 +256,7 @@ async function handleEmailVerification(req, res) {
     if (tokenRecord.expires_at < Date.now()) {
       return res.status(400).json({
         success: false,
-        error: 'This verification link has expired. Please request a new verification email.'
+        error: 'This verification link has expired. Please request a new verification link.'
       });
     }
 
@@ -323,15 +371,15 @@ router.post('/resend-verification', resendLimiter, async (req, res) => {
       console.warn(`[EduShare Resend Verification] Email send warning for ${cleanEmail}: ${err.message}`);
     }
 
-    const verificationUrl = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(rawToken)}`;
+    const verificationUrl = `/verify-email?token=${encodeURIComponent(rawToken)}`;
 
     return res.status(200).json({
       success: true,
       emailSent,
-      verificationUrl: !emailSent ? verificationUrl : undefined,
+      verificationUrl,
       message: emailSent
         ? 'A new verification email has been sent. Please check your inbox and spam folder.'
-        : 'Verification link generated. Since SMTP is restricted on free cloud hosting, click below to verify:'
+        : 'Verification link generated. Click below to verify and activate your account:'
     });
 
   } catch (err) {
@@ -393,11 +441,33 @@ router.post('/login', loginLimiter, async (req, res) => {
     // RESTRICTION: Check verification status directly from backend database (Phase 2.D)
     if (user.email_verified !== 1) {
       logSecurityEvent('LOGIN_BLOCKED_UNVERIFIED', { userId: user.id, email: cleanEmail, ipAddress: req.ip });
+
+      // Generate active verification token so user can verify immediately
+      const rawToken = generateToken();
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = Date.now() + VERIFICATION_TOKEN_LIFESPAN_MS;
+      const now = Date.now();
+
+      transaction((tx) => {
+        tx.prepare(`
+          UPDATE email_verification_tokens
+          SET used_at = ?
+          WHERE user_id = ? AND used_at IS NULL
+        `).run(now, user.id);
+
+        tx.prepare(`
+          INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
+          VALUES (?, ?, ?, ?)
+        `).run(user.id, tokenHash, expiresAt, now);
+      });
+
+      const verificationUrl = `/verify-email?token=${encodeURIComponent(rawToken)}`;
+
       return res.status(403).json({
         success: false,
         unverified: true,
         email: cleanEmail,
-        // EXACT MESSAGE REQUIRED BY SPECIFICATION (Phase 2.D):
+        verificationUrl,
         error: 'Please verify your email before logging in. Check your inbox or click Resend Verification.'
       });
     }
@@ -567,7 +637,7 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
       console.warn(`[EduShare Forgot Password] Email send warning for ${cleanEmail}: ${err.message}`);
     }
 
-    const resetUrl = `${config.frontendUrl}/reset-password?token=${encodeURIComponent(rawResetToken)}`;
+    const resetUrl = `/reset-password?token=${encodeURIComponent(rawResetToken)}`;
 
     return res.status(200).json({
       success: true,

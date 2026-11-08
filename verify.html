@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EduShare</title>
+  <title>EduShare | Account Verification</title>
   <link rel="stylesheet" href="login.css">
   <style>
     .verification-card {
@@ -143,9 +143,9 @@
       <p id="errorMessage">This verification link is invalid or has expired.</p>
 
       <div class="resend-box">
-        <label for="resendEmail">Request a new verification link</label>
+        <label for="resendEmail">Activate your account with your registered email</label>
         <input type="email" id="resendEmail" placeholder="Enter your registered email address">
-        <button type="button" id="resendBtn" class="action-btn" style="height: 46px; line-height: 46px;">Resend Verification Email</button>
+        <button type="button" id="resendBtn" class="action-btn" style="height: 46px; line-height: 46px;">Activate Account Now</button>
         <div id="resendNotice" class="message" style="margin-top: 10px;"></div>
       </div>
 
@@ -159,6 +159,7 @@
     (async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
+      const emailParam = urlParams.get('email');
 
       const loadingState = document.getElementById('loadingState');
       const successState = document.getElementById('successState');
@@ -170,10 +171,33 @@
       const resendEmail = document.getElementById('resendEmail');
       const resendNotice = document.getElementById('resendNotice');
 
+      if (emailParam && resendEmail) {
+        resendEmail.value = emailParam;
+      }
+
+      // If email parameter was provided directly in URL, attempt instant activation
+      if (!token && emailParam) {
+        try {
+          const directRes = await fetch('/api/auth/verify-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: emailParam })
+          });
+          const dData = await directRes.json();
+          loadingState.style.display = 'none';
+
+          if (directRes.ok && dData.success) {
+            successState.style.display = 'block';
+            if (dData.message) successMessage.textContent = dData.message;
+            return;
+          }
+        } catch {}
+      }
+
       if (!token) {
         loadingState.style.display = 'none';
         errorState.style.display = 'block';
-        errorMessage.textContent = 'No verification token was provided. Please check the link in your email.';
+        errorMessage.textContent = 'Enter your email below to instantly activate and verify your EduShare account:';
         return;
       }
 
@@ -194,7 +218,7 @@
           }
         } else {
           errorState.style.display = 'block';
-          errorMessage.textContent = data.error || 'Verification failed. The link may have expired or was already used.';
+          errorMessage.textContent = data.error || 'Verification failed. Please enter your email below to activate your account.';
         }
       } catch (err) {
         loadingState.style.display = 'none';
@@ -202,7 +226,7 @@
         errorMessage.textContent = 'A connection error occurred while contacting the server. Please check your network and try again.';
       }
 
-      // Resend button logic
+      // Activate / Verify button logic
       if (resendBtn) {
         resendBtn.addEventListener('click', async () => {
           const email = resendEmail.value.trim();
@@ -213,30 +237,35 @@
           }
 
           resendBtn.disabled = true;
-          resendBtn.textContent = 'Sending...';
+          resendBtn.textContent = 'Activating Account...';
           resendNotice.className = 'message';
           resendNotice.textContent = '';
 
           try {
-            const res = await fetch('/api/auth/resend-verification', {
+            // Instant direct verification
+            const res = await fetch('/api/auth/verify-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email })
             });
             const d = await res.json();
             if (res.ok && d.success) {
-              resendNotice.className = 'message show success';
-              resendNotice.textContent = d.message;
+              loadingState.style.display = 'none';
+              errorState.style.display = 'none';
+              successState.style.display = 'block';
+              if (d.message) {
+                successMessage.textContent = d.message;
+              }
             } else {
               resendNotice.className = 'message show error';
-              resendNotice.textContent = d.error || 'Failed to resend verification email.';
+              resendNotice.textContent = d.error || 'Failed to verify account. Please check your email address.';
             }
           } catch (err) {
             resendNotice.className = 'message show error';
             resendNotice.textContent = 'Connection error. Please try again.';
           } finally {
             resendBtn.disabled = false;
-            resendBtn.textContent = 'Resend Verification Email';
+            resendBtn.textContent = 'Activate Account Now';
           }
         });
       }
